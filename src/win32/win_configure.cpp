@@ -5,6 +5,14 @@
 #include "win_main.h"
 #include <d3d9.h>
 
+// Android/Linux (BO1_NATIVE): there is no message box to answer, and the shim answers "No" to yes/no questions, which
+// made the game quit right here. The low-memory warning is only a warning, so on native builds the game carries on.
+#ifdef BO1_NATIVE
+#define BO1_SKIP_LOW_MEMORY_PROMPT 1
+#else
+#define BO1_SKIP_LOW_MEMORY_PROMPT 0
+#endif
+
 int __cdecl Sys_SystemMemoryMB()
 {
     HWND ActiveWindow; // eax
@@ -27,7 +35,7 @@ int __cdecl Sys_SystemMemoryMB()
     {
         statusEx.dwLength = 64;
         MemStatEx(&statusEx);
-        if (statusEx.ullAvailVirtual < 0x8000000 && !Sys_IsHeadless()) // zombies: headless never prompts
+        if (statusEx.ullAvailVirtual < 0x8000000 && !Sys_IsHeadless() && !BO1_SKIP_LOW_MEMORY_PROMPT) // zombies: headless never prompts
         {
             v5 = Win_LocalizeRef("WIN_LOW_MEMORY_TITLE");
             v3 = Win_LocalizeRef("WIN_LOW_MEMORY_BODY");
@@ -48,7 +56,7 @@ int __cdecl Sys_SystemMemoryMB()
     {
         status.dwLength = 32;
         GlobalMemoryStatus(&status);
-        if (status.dwAvailVirtual < 0x8000000 && !Sys_IsHeadless()) // zombies: headless never prompts
+        if (status.dwAvailVirtual < 0x8000000 && !Sys_IsHeadless() && !BO1_SKIP_LOW_MEMORY_PROMPT) // zombies: headless never prompts
         {
             v6 = Win_LocalizeRef("WIN_LOW_MEMORY_TITLE");
             v4 = Win_LocalizeRef("WIN_LOW_MEMORY_BODY");
