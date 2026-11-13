@@ -107,6 +107,18 @@ jobs:
           cat > /bo1/passos-apk.sh <<'PASSOS'
           set -e
           S=/bo1/src/tools/native
+          cd /bo1/src
+          # correção 1: o build-p32.sh grava registros em build/ sem criar a pasta antes
+          mkdir -p /bo1/src/build/native-x64
+          # correção 2: o ninja não conhece o alvo "libdxvk_d3d9.so" (só o nome com versão); procura o nome certo
+          python3 - <<'PY'
+          p = '/bo1/src/tools/native/build-dxvk.sh'
+          s = open(p).read()
+          a = '-k 0 src/d3d9/libdxvk_d3d9.so >'
+          assert s.count(a) == 1, 'linha do ninja não encontrada em build-dxvk.sh'
+          b = r'''-k 0 $(ninja -C $B -t targets all | awk -F: '$1 ~ /^src\/d3d9\/libdxvk_d3d9\.so[0-9.]*$/ {print length($1), $1}' | sort -n | tail -1 | cut -d' ' -f2) >'''
+          open(p, 'w').write(s.replace(a, b))
+          PY
           bash $S/get-ndk.sh
           [ -x /bo1/llvm/build/bin/clang ] || { echo "Compilador remendado não encontrado"; exit 1; }
           bash $S/android-setup.sh
@@ -128,6 +140,8 @@ jobs:
           path: |
             /bo1/p32tree/build/android/build.log
             /bo1/p32tree/build/x64/build.log
+            /bo1/dxvk/*.log
+            /bo1/src/build/*.log
           if-no-files-found: ignore
 
       - name: Guardar o APK
