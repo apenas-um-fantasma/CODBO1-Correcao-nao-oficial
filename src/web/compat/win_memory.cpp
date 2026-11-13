@@ -10,6 +10,7 @@
 #include "bo1_platform.h"
 #include <malloc.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <map>
 #include <mutex>
 #include <vector>
@@ -215,9 +216,30 @@ static void HeapNumbers(uint64_t *total, uint64_t *avail)
 {
     *total = bo1_plat_memory_total();
 #ifdef BO1_NATIVE
-    // native: free physical memory, at most the total the engine is told about
-    const long pages = sysconf(_SC_AVPHYS_PAGES), pageSize = sysconf(_SC_PAGESIZE);
-    const uint64_t freePhys = pages > 0 && pageSize > 0 ? (uint64_t)pages * (uint64_t)pageSize : *total;
+    // native: memory the system can still give out, at most the total the engine is told about.
+    // sysconf(_SC_AVPHYS_PAGES) is only MemFree (pages nobody uses at all). On Android that is almost always tiny
+    // (the kernel keeps RAM full of cache), which made the engine think the phone had no memory left and quit at
+    // startup. /proc/meminfo's MemAvailable counts the cache that can be dropped, which is what we want.
+    uint64_t freePhys = 0;
+    if (FILE *mi = fopen("/proc/meminfo", "r"))
+    {
+        char line[128];
+        while (fgets(line, sizeof(line), mi))
+        {
+            unsigned long long kb = 0;
+            if (sscanf(line, "MemAvailable: %llu kB", &kb) == 1)
+            {
+                freePhys = (uint64_t)kb * 1024ull;
+                break;
+            }
+        }
+        fclose(mi);
+    }
+    if (freePhys == 0)
+    {
+        const long pages = sysconf(_SC_AVPHYS_PAGES), pageSize = sysconf(_SC_PAGESIZE);
+        freePhys = pages > 0 && pageSize > 0 ? (uint64_t)pages * (uint64_t)pageSize : *total;
+    }
     *avail = freePhys < *total ? freePhys : *total;
 #else
     const uint64_t used = (uint64_t)(uintptr_t)sbrk(0);
